@@ -1,11 +1,11 @@
-# Teamspeak 3 ServerQuery for Go
+# Teamspeak 3 ServerQuery
 
 [![GoDoc Widget]][GoDoc] [![Go Report Card Widget]][Go Report Card]
 
-[GoDoc]: https://godoc.org/github.com/paralin/go-ts3
-[GoDoc Widget]: https://godoc.org/github.com/paralin/go-ts3?status.svg
-[Go Report Card Widget]: https://goreportcard.com/badge/github.com/paralin/go-ts3
-[Go Report Card]: https://goreportcard.com/report/github.com/paralin/go-ts3
+[GoDoc]: https://godoc.org/github.com/paralin/ts3-go
+[GoDoc Widget]: https://godoc.org/github.com/paralin/ts3-go?status.svg
+[Go Report Card Widget]: https://goreportcard.com/badge/github.com/paralin/ts3-go
+[Go Report Card]: https://goreportcard.com/report/github.com/paralin/ts3-go
 
 ## Introduction
 
