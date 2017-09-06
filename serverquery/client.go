@@ -4,6 +4,7 @@ import (
 	"bytes"
 	"context"
 	"strings"
+	"sync"
 
 	"github.com/pkg/errors"
 )
@@ -27,6 +28,10 @@ type ServerQueryAPI struct {
 	readQueue chan string
 	// readError is the last read error
 	readError error
+	// eventListeners is the list of event listeners
+	eventListeners []chan<- Event
+	// eventListenersMtx is the mtx of listeners
+	eventListenersMtx sync.Mutex
 }
 
 // NewServerQueryAPI builds a new ServerQueryAPI client.
@@ -49,14 +54,17 @@ type pendingCommand struct {
 // ExecuteCommand sync-executes a command, waiting for the result.
 func (a *ServerQueryAPI) ExecuteCommand(
 	ctx context.Context,
-	command string,
-	result interface{},
+	command Command,
 ) (interface{}, error) {
 	doneCh := make(chan error, 1)
+	mc, err := MarshalCommand(command)
+	if err != nil {
+		return nil, err
+	}
 	pendCommand := &pendingCommand{
 		ctx:     ctx,
-		command: command,
-		result:  result,
+		command: mc,
+		result:  command.GetResponseType(),
 		doneCh:  doneCh,
 	}
 	select {
@@ -135,7 +143,12 @@ func (a *ServerQueryAPI) submitCommand(cmd string, resultObj interface{}) (inter
 				return nil, errors.Wrap(errors.New(respObj.ErrorMessage), "server error")
 			}
 
-			resultObj, err = UnmarshalArguments(resultBuf.String(), resultObj)
+			if resultObj != nil {
+				resultObj, err = UnmarshalArguments(resultBuf.String(), resultObj)
+				if err != nil {
+					return nil, err
+				}
+			}
 			return resultObj, nil
 		}
 
@@ -144,11 +157,40 @@ func (a *ServerQueryAPI) submitCommand(cmd string, resultObj interface{}) (inter
 }
 
 // processEvent processes and emits an event correctly.
-func (a *ServerQueryAPI) processEvent(event string) {
-	if !strings.HasPrefix(event, "notify") {
+func (a *ServerQueryAPI) processEvent(ctx context.Context, event string) {
+	msgParts := strings.SplitN(event, " ", 2)
+	msgName := msgParts[0]
+	if !strings.HasPrefix(msgName, "notify") {
 		return
 	}
-	return
+	eventName := msgName[len("notify"):]
+	c, ok := eventConstructorTable[eventName]
+	if !ok {
+		return
+	}
+	proto, err := UnmarshalArguments(msgParts[1], c())
+	if err != nil {
+		return
+	}
+	eve := proto.(Event)
+
+	a.eventListenersMtx.Lock()
+	for _, eventListener := range a.eventListeners {
+		select {
+		case <-ctx.Done():
+			return
+		case eventListener <- eve:
+		}
+	}
+	a.eventListenersMtx.Unlock()
+}
+
+// Events returns a channel of events
+func (a *ServerQueryAPI) Events() <-chan Event {
+	ch := make(chan Event, 10)
+	a.eventListenersMtx.Lock()
+	a.eventListeners = append(a.eventListeners, ch)
+	a.eventListenersMtx.Unlock()
 }
 
 // Run processes the client send/receive loop.

@@ -37,3 +37,16 @@ func TestMarshalArguments(t *testing.T) {
 		t.Fatalf("marshal returned (expected %s): %s", expected, str)
 	}
 }
+
+// TestMarshalCommand tries to marshal a command.
+func TestMarshalCommand(t *testing.T) {
+	cmd := &GetClientInfoCommand{ClientId: 1}
+	str, err := MarshalCommand(cmd)
+	if err != nil {
+		t.Fatal(err.Error())
+	}
+	expected := "clientinfo clid=1"
+	if str != expected {
+		t.Fatalf("expected %s, got: %s", expected, str)
+	}
+}

@@ -1,5 +1,9 @@
 package serverquery
 
+import (
+	"context"
+)
+
 // ClientBasicInfo is the basic information given out in the client list.
 type ClientBasicInfo struct {
 	// Id is the ID of the client.
@@ -10,6 +14,28 @@ type ClientBasicInfo struct {
 	Nickname string `serverquery:"client_nickname"`
 	// Type is the type of the client.
 	Type int `serverquery:"client_type"`
+}
+
+// GetClientListCommand requests the client list.
+type GetClientListCommand struct{}
+
+// GetResponseType returns an instance of the response type.
+func (c *GetClientListCommand) GetResponseType() interface{} {
+	return make([]*ClientBasicInfo, 0)
+}
+
+// GetCommandName returns the name of the command.
+func (c *GetClientListCommand) GetCommandName() string {
+	return "clientlist -uid"
+}
+
+// GetClientList returns the list of the clients.
+func (c *ServerQueryAPI) GetClientList(ctx context.Context) ([]*ClientBasicInfo, error) {
+	i, err := c.ExecuteCommand(ctx, &GetClientListCommand{})
+	if err != nil {
+		return nil, err
+	}
+	return i.([]*ClientBasicInfo), nil
 }
 
 // ClientInfo contains client information.
@@ -40,6 +66,65 @@ type ClientInfo struct {
 	IsRecording bool `serverquery:"client_is_recording"`
 	// ChannelGroupId is the ID of the channel group the client is in.
 	ChannelGroupId int `serverquery:"client_channel_group_id"`
-	// ClientServergroups is the list of server groups on the client.
-	ClientServergroups []int `serverquery:"client_servergroups"`
+	// ServerGroups is the list of server groups on the client.
+	ServerGroups []int `serverquery:"client_servergroups"`
+	// TotalConnections is the total number of times the client has connected.
+	TotalConnections int `serverquery:"client_totalconnections"`
+	// Away is set if the client is marked as away.
+	Away bool `serverquery:"client_away"`
+	// AwayMessage is the client away message.
+	AwayMessage string `serverquery:"client_away_message"`
+	// TalkPower is the talk power of the client.
+	TalkPower int `serverquery:"client_talk_power"`
+	// TalkRequest indicates if the client has requested to talk.
+	TalkRequest bool `serverquery:"client_talk_request"`
+	// TalkRequestMessage is the message the client gave when requesting to talk.
+	TalkRequestMessage string `serverquery:"client_talk_request_msg"`
+	// Description is the description of the client.
+	Description string `serverquery:"client_description"`
+	// IsTalker indicates if the client is a talker.
+	IsTalker bool `serverquery:"client_is_talker"`
+	// MonthBytesUploaded is the number of bytes uploaded this month.
+	MonthBytesUploaded int `serverquery:"client_month_bytes_uploaded"`
+	// MonthBytesDownloaded is the number of bytes downloaded this month.
+	MonthBytesDownloaded int `serverquery:"client_month_bytes_downloaded"`
+	// TotalBytesUploaded is the number of bytes uploaded total.
+	TotalBytesUploaded int `serverquery:"client_total_bytes_uploaded"`
+	// TotalBytesDownloaded is the number of bytes downloaded total.
+	TotalBytesDownloaded int `serverquery:"client_total_bytes_downloaded"`
+	// IsPrioritySpeaker indicates if the client is a priority speaker
+	IsPrioritySpeaker bool `serverquery:"client_is_priority_speaker"`
+	// PhoneticNickname is the phonetic nickname if given.
+	PhoneticNickname string `serverquery:"client_nickname_phonetic"`
+	// NeededServerQueryViewPower is the view power necessary to view the client.
+	NeededServerQueryViewPower int `serverquery:"client_needed_serverquery_view_power"`
+	// IconId is the icon ID of the client.
+	IconId int `serverquery:"client_icon_id"`
+	// IsChannelCommander indicates if the client is a channel commander.
+	IsChannelCommander bool `serverquery:"is_channel_commander"`
+}
+
+// GetClientInfoCommand requests the info about a specific client.
+type GetClientInfoCommand struct {
+	// ClientId is the ID of the client.
+	ClientId int `serverquery:"clid"`
+}
+
+// GetResponseType returns an instance of the response type.
+func (c *GetClientInfoCommand) GetResponseType() interface{} {
+	return &ClientInfo{}
+}
+
+// GetCommandName returns the name of the command.
+func (c *GetClientInfoCommand) GetCommandName() string {
+	return "clientinfo"
+}
+
+// GetClientInfo returns the info of a client.
+func (c *ServerQueryAPI) GetClientInfo(ctx context.Context, clid int) (*ClientInfo, error) {
+	i, err := c.ExecuteCommand(ctx, &GetClientInfoCommand{ClientId: clid})
+	if err != nil {
+		return nil, err
+	}
+	return i.(*ClientInfo), nil
 }
