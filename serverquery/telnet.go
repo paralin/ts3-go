@@ -1,14 +1,27 @@
 package serverquery
 
 import (
+	"bufio"
 	"bytes"
 	"io"
 	"net"
+	"regexp"
 )
+
+var invalidCharRegex = regexp.MustCompile(`[^ -~]+`)
 
 // ServerQueryReadWriter can talk to the API
 type ServerQueryReadWriter struct {
 	net.Conn
+	scanner *bufio.Scanner
+}
+
+// NewServerQueryReadWriter builds a new read-writer
+func NewServerQueryReadWriter(conn net.Conn) *ServerQueryReadWriter {
+	return &ServerQueryReadWriter{
+		Conn:    conn,
+		scanner: bufio.NewScanner(conn),
+	}
 }
 
 // WriteCommand writes a command line to the connection.
@@ -21,18 +34,18 @@ func (rw *ServerQueryReadWriter) WriteCommand(command string) error {
 }
 
 // ReadCommand reads a full command in.
-func (rw *ServerQueryReadWriter) ReadCommand() (string, error) {
-	var result bytes.Buffer
-	buf := make([]byte, 1)
+func (rw *ServerQueryReadWriter) ReadCommand() (rstr string, rerr error) {
 	for {
-		_, err := rw.Conn.Read(buf)
-		if err != nil {
+		didScan := rw.scanner.Scan()
+		if err := rw.scanner.Err(); err != nil {
 			return "", err
 		}
-		r := rune(buf[0])
-		if r == '\n' {
-			return result.String(), nil
+		if !didScan {
+			return "", io.EOF
 		}
-		result.WriteRune(r)
+
+		resultString := rw.scanner.Text()
+		resultString = invalidCharRegex.ReplaceAllString(resultString, "")
+		return resultString, nil
 	}
 }

@@ -2,6 +2,7 @@ package serverquery
 
 import (
 	"context"
+	"github.com/pkg/errors"
 )
 
 // UseCommand is the use command.
@@ -44,6 +45,10 @@ func (c *LoginCommand) GetCommandName() string {
 
 // Login logs into the server.
 func (c *ServerQueryAPI) Login(ctx context.Context, username, password string) error {
+	if username == "" || password == "" {
+		return errors.New("username and password must not be nil")
+	}
+
 	_, err := c.ExecuteCommand(ctx, &LoginCommand{username: username, password: password})
 	return err
 }

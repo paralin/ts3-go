@@ -35,6 +35,17 @@ func NewServerQueryAPI(rw *ServerQueryReadWriter) *ServerQueryAPI {
 	}
 }
 
+// waitForServerIntro waits for the two introduction lines from the server.
+func (a *ServerQueryAPI) waitForServerIntro() error {
+	ignoreLines := 2
+	for i := 0; i < ignoreLines; i++ {
+		if _, err := a.ReadCommand(); err != nil {
+			return err
+		}
+	}
+	return nil
+}
+
 // Dial attempts to dial the telnet API.
 func Dial(endp string) (*ServerQueryAPI, error) {
 	conn, err := net.Dial("tcp", endp)
@@ -42,7 +53,13 @@ func Dial(endp string) (*ServerQueryAPI, error) {
 		return nil, err
 	}
 
-	return NewServerQueryAPI(&ServerQueryReadWriter{Conn: conn}), nil
+	api := NewServerQueryAPI(NewServerQueryReadWriter(conn))
+	if err := api.waitForServerIntro(); err != nil {
+		conn.Close()
+		return nil, err
+	}
+
+	return api, nil
 }
 
 // pendingCommand is a queued command waiting for a response.
@@ -119,16 +136,27 @@ type callResult struct {
 }
 
 // submitCommand writes a command to the server and waits for the reply.
-func (a *ServerQueryAPI) submitCommand(cmd string, resultObj interface{}) (interface{}, error) {
+func (a *ServerQueryAPI) submitCommand(ctx context.Context, cmdObj *pendingCommand) (interface{}, error) {
+	cmd := cmdObj.command
+	resultObj := cmdObj.result
+
+	select {
+	case <-cmdObj.ctx.Done():
+		return nil, context.Canceled
+	default:
+	}
+
 	if err := a.WriteCommand(cmd); err != nil {
 		return nil, err
 	}
 
 	var resultBuf bytes.Buffer
 	for {
-		response, err := a.ReadCommand()
-		if err != nil {
-			return nil, err
+		var response string
+		select {
+		case <-ctx.Done():
+			return nil, context.Canceled
+		case response = <-a.readQueue:
 		}
 
 		if strings.HasPrefix(response, "error ") {
@@ -182,6 +210,7 @@ func (a *ServerQueryAPI) processEvent(ctx context.Context, event string) {
 		case <-ctx.Done():
 			return
 		case eventListener <- eve:
+		default:
 		}
 	}
 	a.eventListenersMtx.Unlock()
@@ -215,7 +244,7 @@ func (a *ServerQueryAPI) Run(parentContext context.Context) error {
 		case <-ctx.Done():
 			return context.Canceled
 		case cmd := <-a.commandQueue:
-			res, err := a.submitCommand(cmd.command, cmd.result)
+			res, err := a.submitCommand(ctx, cmd)
 			cmd.result = res
 			select {
 			case <-ctx.Done():

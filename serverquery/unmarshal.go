@@ -16,7 +16,6 @@ func ParseArgumentValue(val string) (interface{}, error) {
 		return nil, errors.New("cannot have empty argument value")
 	}
 
-	val = strings.Replace(val, "\\s", " ", -1)
 	valRunes := []rune(val)
 	firstRune := valRunes[0]
 	if firstRune == '"' {
@@ -63,6 +62,7 @@ func ParseArgumentValue(val string) (interface{}, error) {
 
 // ParseArgumentList parses an args string to a map.
 func ParseArgumentList(args string) (map[string]interface{}, error) {
+	args = strings.Replace(args, "\\s", "&nbsp;", -1)
 	parts, err := shellquote.Split(args)
 	if err != nil {
 		return nil, err
@@ -70,18 +70,22 @@ func ParseArgumentList(args string) (map[string]interface{}, error) {
 
 	res := make(map[string]interface{})
 	for _, pt := range parts {
+		pt = strings.Replace(pt, "&nbsp;", " ", -1)
 		ptEqParts := strings.SplitN(pt, "=", 2)
 		key := ptEqParts[0]
-		if len(ptEqParts) != 2 || len(key) < 1 {
-			return nil, errors.Errorf("malformed arg: %s", pt)
+		if len(key) < 1 {
+			return nil, nil
 		}
 
-		val := ptEqParts[1]
-		ptVal, err := ParseArgumentValue(val)
-		if err != nil {
-			return nil, err
+		if len(ptEqParts) > 1 {
+			ptVal, err := ParseArgumentValue(ptEqParts[1])
+			if err != nil {
+				return nil, err
+			}
+			res[key] = ptVal
+		} else {
+			res[key] = nil
 		}
-		res[key] = ptVal
 	}
 
 	return res, nil
@@ -138,13 +142,17 @@ func unmarshalObject(str []rune, outp interface{}) error {
 			continue
 		}
 		delete(argMap, sqtag)
+		if argVal == nil {
+			continue
+		}
+
 		// fmt.Printf("set: %s -> %#v\n", outpField.String(), argVal)
 		v := reflect.ValueOf(argVal)
 		t := reflect.TypeOf(argVal)
 		ot := outpField.Type()
 
 		if ot.Kind() == reflect.Slice && t.Kind() != reflect.Slice {
-			sval := reflect.MakeSlice(ot.Elem(), 0, 1)
+			sval := reflect.MakeSlice(ot, 0, 1)
 			sval = reflect.Append(sval, v)
 			v = sval
 			t = reflect.TypeOf(sval)

@@ -6,7 +6,7 @@ import (
 )
 
 func TestParseArgumentList(t *testing.T) {
-	res, err := ParseArgumentList("test=\"hello world\" type=2")
+	res, err := ParseArgumentList("test=\"hello world\" type=2 test2=hello\\sthere")
 	if err != nil {
 		panic(err)
 	}
@@ -14,6 +14,11 @@ func TestParseArgumentList(t *testing.T) {
 	val := res["test"]
 	if valStr, ok := val.(string); !ok || valStr != "hello world" {
 		t.Fatalf("test parsed incorrectly: %#v", val)
+	}
+
+	val = res["test2"]
+	if valStr, ok := val.(string); !ok || valStr != "hello there" {
+		t.Fatalf("test2 parsed incorrectly: %#v", val)
 	}
 
 	valb := res["type"]

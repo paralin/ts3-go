@@ -14,6 +14,8 @@ type ClientBasicInfo struct {
 	Nickname string `serverquery:"client_nickname"`
 	// Type is the type of the client.
 	Type int `serverquery:"client_type"`
+	// UniqueIdentifier contains the client unique id.
+	UniqueIdentifier string `serverquery:"client_unique_identifier"`
 }
 
 // GetClientListCommand requests the client list.
@@ -42,8 +44,6 @@ func (c *ServerQueryAPI) GetClientList(ctx context.Context) ([]*ClientBasicInfo,
 type ClientInfo struct {
 	ClientBasicInfo
 
-	// UniqueIdentifier contains the client unique id.
-	UniqueIdentifier string `serverquery:"client_unique_identifier`
 	// ClientIdleTime is the time the client has been idle.
 	ClientIdleTime int `serverquery:"client_idle_time"`
 	// Version is the client version.
