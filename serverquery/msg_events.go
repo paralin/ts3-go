@@ -30,14 +30,20 @@ func (e *UnknownEvent) GetEventName() string {
 	return "unknown"
 }
 
-// ClientLeftView is emitted when the client leaves the view.
-type ClientLeftView struct {
+// ChannelMovement contains information about a source and destination channel.
+type ChannelMovement struct {
 	// SourceChannel is the channel the client left from.
 	SourceChannel int `serverquery:"cfid"`
 	// TargetChannel is the channel the client went to.
 	TargetChannel int `serverquery:"ctid"`
-	// ReasonId is the reason the client left.
+	// ReasonId is the reason the client moved.
 	ReasonId int `serverquery:"reasonid"`
+}
+
+// ClientLeftView is emitted when the client leaves the view.
+type ClientLeftView struct {
+	ChannelMovement
+
 	// ReasonMessage is the reason why they are leaving.
 	ReasonMessage string `serverquery:"reasonmsg"`
 	// ClientId is the ID of the client.
@@ -52,6 +58,25 @@ func (c *ClientLeftView) GetEventName() string {
 func init() {
 	addEventPrototype(func() Event {
 		return &ClientLeftView{}
+	})
+}
+
+// ClientEnteredView is emitted when a client enters the view.
+type ClientEnteredView struct {
+	// ChannelMovement contains information about the channels.
+	ChannelMovement
+	// ClientInfo will have some fields filled in.
+	ClientInfo
+}
+
+// GetEventName returns the event name.
+func (c *ClientEnteredView) GetEventName() string {
+	return "cliententerview"
+}
+
+func init() {
+	addEventPrototype(func() Event {
+		return &ClientEnteredView{}
 	})
 }
 
