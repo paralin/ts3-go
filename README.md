@@ -26,7 +26,7 @@ channelmove cid=16 cpid=1 order=0
 sendtextmessage targetmode=2 target=12 msg=Hello\sWorld!endtextmessage 
 ```
 
-There is a ServerQueryMarshaller that marshals structures.
+This package can marshal (encode) and unmarshal (decode) the ServerQuery protocol intelligently, supporting anonymous types and nested / ignored fields.
 
 ```golang
 // TargetMode specifies which kind of target to use.
@@ -38,4 +38,20 @@ type SendTextMessage struct {
 	TargetMode TargetMode `serverquery:"targetmode"`
 }
 ```
+
+## Getting Started
+
+The following code snippit is approximately how one uses this library. A full example can be seen under the example directory.
+
+```golang
+import "github.com/paralin/ts3-go/serverquery"
+
+client, err := serverquery.Dial("localhost:10011")
+if err != nil { panic(err) }
+client.Use(9877)
+client.Login("username", "password")
+clientList, err := client.GetClientList()
+```
+
+All calls are thread-safe.
 
