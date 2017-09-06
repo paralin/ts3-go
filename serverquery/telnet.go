@@ -3,6 +3,7 @@ package serverquery
 import (
 	"bufio"
 	"bytes"
+	"fmt"
 	"io"
 	"net"
 	"regexp"
@@ -29,6 +30,7 @@ func (rw *ServerQueryReadWriter) WriteCommand(command string) error {
 	var buf bytes.Buffer
 	buf.WriteString(command)
 	buf.WriteRune('\n')
+	fmt.Printf("wrote: %s\n", command)
 	_, err := io.Copy(rw.Conn, &buf)
 	return err
 }

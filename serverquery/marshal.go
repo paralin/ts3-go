@@ -24,7 +24,10 @@ func encodeArgument(arg interface{}) (rStr string, rErr error) {
 		if len(argStr) == 0 {
 			return "", nil
 		}
-		return strconv.QuoteToASCII(argStr) + " ", nil
+		quoted := strconv.QuoteToASCII(argStr)
+		quoted = strings.Replace(quoted, " ", "\\s", -1)
+		quoted = quoted[1 : len(quoted)-1]
+		return quoted + " ", nil
 	}
 
 	typeOfArg := reflect.TypeOf(arg)

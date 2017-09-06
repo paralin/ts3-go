@@ -3,12 +3,17 @@ package serverquery
 import (
 	"bytes"
 	"context"
+	"fmt"
 	"net"
 	"strings"
 	"sync"
+	"time"
 
 	"github.com/pkg/errors"
 )
+
+// defaultCommandTimeout is the command timeout.
+var defaultCommandTimeout = 5 * time.Second
 
 // ServerQueryAPI is a client that implements the API.
 type ServerQueryAPI struct {
@@ -151,12 +156,15 @@ func (a *ServerQueryAPI) submitCommand(ctx context.Context, cmdObj *pendingComma
 	}
 
 	var resultBuf bytes.Buffer
+	timeoutTimer := time.After(defaultCommandTimeout)
 	for {
 		var response string
 		select {
 		case <-ctx.Done():
 			return nil, context.Canceled
 		case response = <-a.readQueue:
+		case <-timeoutTimer:
+			return nil, errors.New("command timed out")
 		}
 
 		if strings.HasPrefix(response, "error ") {
@@ -191,18 +199,22 @@ func (a *ServerQueryAPI) processEvent(ctx context.Context, event string) {
 	msgParts := strings.SplitN(event, " ", 2)
 	msgName := msgParts[0]
 	if !strings.HasPrefix(msgName, "notify") {
+		fmt.Printf("ignored message: %s\n", event)
 		return
 	}
+
+	var eve Event
 	eventName := msgName[len("notify"):]
 	c, ok := eventConstructorTable[eventName]
-	if !ok {
-		return
+	if ok {
+		proto, err := UnmarshalArguments(msgParts[1], c())
+		if err != nil {
+			return
+		}
+		eve = proto.(Event)
+	} else {
+		eve = &UnknownEvent{EventSource: event}
 	}
-	proto, err := UnmarshalArguments(msgParts[1], c())
-	if err != nil {
-		return
-	}
-	eve := proto.(Event)
 
 	a.eventListenersMtx.Lock()
 	for _, eventListener := range a.eventListeners {
@@ -214,6 +226,11 @@ func (a *ServerQueryAPI) processEvent(ctx context.Context, event string) {
 		}
 	}
 	a.eventListenersMtx.Unlock()
+}
+
+// Close ensures the server conn is closed down.
+func (a *ServerQueryAPI) Close() {
+	a.Conn.Close()
 }
 
 // Events returns a channel of events

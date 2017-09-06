@@ -128,3 +128,38 @@ func (c *ServerQueryAPI) GetClientInfo(ctx context.Context, clid int) (*ClientIn
 	}
 	return i.(*ClientInfo), nil
 }
+
+// SendTextMessageCommand sends a text message.
+type SendTextMessageCommand struct {
+	// TargetMode is the mode of the target.
+	TargetMode int `serverquery:"targetmode"`
+	// Target is the target of the message
+	Target int `serverquery:"target"`
+	// Message is the message to send.
+	Message string `serverquery:"msg"`
+}
+
+// GetResponseType returns an instance of the response type.
+func (c *SendTextMessageCommand) GetResponseType() interface{} {
+	return nil
+}
+
+// GetCommandName returns the name of the command.
+func (c *SendTextMessageCommand) GetCommandName() string {
+	return "sendtextmessage"
+}
+
+// SendTextMessage sends a text message to a target.
+func (c *ServerQueryAPI) SendTextMessage(
+	ctx context.Context,
+	targetType int,
+	targetId int,
+	message string,
+) error {
+	_, err := c.ExecuteCommand(ctx, &SendTextMessageCommand{
+		TargetMode: targetType,
+		Target:     targetId,
+		Message:    message,
+	})
+	return err
+}

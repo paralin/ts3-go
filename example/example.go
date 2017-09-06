@@ -62,7 +62,33 @@ func main() {
 			}
 			dat, _ = json.Marshal(clientInfo)
 			fmt.Printf("client [%d]: %#v\n", clientSummary.Id, string(dat))
+			clientInfo.Id = clientSummary.Id
+			if clientInfo.Type == 0 {
+				err := client.SendTextMessage(
+					ctx,
+					1,
+					clientSummary.Id,
+					fmt.Sprintf(
+						"Your client info: %#v",
+						*clientInfo,
+					),
+				)
+				if err != nil {
+					return err
+				}
+			}
 		}
+
+		fmt.Printf("Waiting for events.\n")
+		if err := client.ServerNotifyRegisterAll(ctx); err != nil {
+			return err
+		}
+
+		events := client.Events()
+		for event := range events {
+			fmt.Printf("event: %#v\n", event)
+		}
+
 		return nil
 	}
 	app.RunAndExitOnError()
