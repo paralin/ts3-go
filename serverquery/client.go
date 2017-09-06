@@ -3,24 +3,16 @@ package serverquery
 import (
 	"bytes"
 	"context"
+	"net"
 	"strings"
 	"sync"
 
 	"github.com/pkg/errors"
 )
 
-// ServerQueryReadWriter can talk to the API.
-type ServerQueryReadWriter interface {
-	// WriteCommand writes a command line to the connection.
-	WriteCommand(command string) error
-
-	// ReadCommand reads a full command in.
-	ReadCommand() (string, error)
-}
-
 // ServerQueryAPI is a client that implements the API.
 type ServerQueryAPI struct {
-	ServerQueryReadWriter
+	*ServerQueryReadWriter
 
 	// commandQueue is the queue of outgoing commands
 	commandQueue chan *pendingCommand
@@ -35,12 +27,22 @@ type ServerQueryAPI struct {
 }
 
 // NewServerQueryAPI builds a new ServerQueryAPI client.
-func NewServerQueryAPI(rw ServerQueryReadWriter) *ServerQueryAPI {
+func NewServerQueryAPI(rw *ServerQueryReadWriter) *ServerQueryAPI {
 	return &ServerQueryAPI{
 		ServerQueryReadWriter: rw,
 		commandQueue:          make(chan *pendingCommand, 10),
 		readQueue:             make(chan string, 10),
 	}
+}
+
+// Dial attempts to dial the telnet API.
+func Dial(endp string) (*ServerQueryAPI, error) {
+	conn, err := net.Dial("tcp", endp)
+	if err != nil {
+		return nil, err
+	}
+
+	return NewServerQueryAPI(&ServerQueryReadWriter{Conn: conn}), nil
 }
 
 // pendingCommand is a queued command waiting for a response.
@@ -191,6 +193,7 @@ func (a *ServerQueryAPI) Events() <-chan Event {
 	a.eventListenersMtx.Lock()
 	a.eventListeners = append(a.eventListeners, ch)
 	a.eventListenersMtx.Unlock()
+	return ch
 }
 
 // Run processes the client send/receive loop.
@@ -198,6 +201,14 @@ func (a *ServerQueryAPI) Run(parentContext context.Context) error {
 	ctx, ctxCancel := context.WithCancel(parentContext)
 	defer ctxCancel()
 	go a.readPump(ctx)
+	go func() {
+		a.eventListenersMtx.Lock()
+		for _, list := range a.eventListeners {
+			close(list)
+		}
+		a.eventListeners = nil
+		a.eventListenersMtx.Unlock()
+	}()
 
 	for {
 		select {
@@ -218,7 +229,7 @@ func (a *ServerQueryAPI) Run(parentContext context.Context) error {
 				}
 				return a.readError
 			}
-			a.processEvent(env)
+			a.processEvent(ctx, env)
 		}
 	}
 }
