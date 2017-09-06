@@ -23,12 +23,12 @@ func TestParseArgumentList(t *testing.T) {
 }
 
 func TestParseObjectList(t *testing.T) {
-	outp := make([]*testArgument, 0)
-	res, err := Unmarshal("thingname=\"hello world\" thingtype=2|thingname=\"goodbye\" thingtype=3", outp)
+	outp := make([]*TestArgument, 0)
+	res, err := UnmarshalArguments("thingname=\"hello world\" thingtype=2 nested=\"nested thing\"|thingname=\"goodbye\" thingtype=3", outp)
 	if err != nil {
 		panic(err)
 	}
-	outp = res.([]*testArgument)
+	outp = res.([]*TestArgument)
 
 	if len(outp) != 2 {
 		t.Fatal("expected 2 output objects")
@@ -38,18 +38,33 @@ func TestParseObjectList(t *testing.T) {
 	if valb != 2 {
 		t.Fatalf("type parsed incorrectly: %#v (%v) != %#v", valb, reflect.TypeOf(valb).Kind(), 2)
 	}
+	valc := outp[0].Nested
+	if valc != "nested thing" {
+		t.Fatalf("type parsed incorrectly: %#v (%v) != %#v", valc, reflect.TypeOf(valc).Kind(), "nested thing")
+	}
 }
 
 func TestE2E(t *testing.T) {
-	arg := &testArgument{ThingType: 1, ThingName: "testing 123"}
+	arg := &TestArgument{
+		ThingType: 1,
+		ThingName: "testing 123",
+		NestedTestArgument: NestedTestArgument{
+			Nested: "nested thing",
+		},
+		ThingBool: true,
+		ThingList: []int{
+			0, 1, 2, 3,
+		},
+	}
 
 	str, err := MarshalArguments(arg)
 	if err != nil {
 		panic(err)
 	}
+	t.Log(str)
 
-	argb := &testArgument{}
-	outpb, err := Unmarshal(str, argb)
+	argb := &TestArgument{}
+	outpb, err := UnmarshalArguments(str, argb)
 	if err != nil {
 		panic(err)
 	}

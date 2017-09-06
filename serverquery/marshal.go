@@ -5,6 +5,7 @@ import (
 	"reflect"
 	"strconv"
 	"strings"
+	"unicode"
 
 	"github.com/pkg/errors"
 )
@@ -15,7 +16,10 @@ type stringable interface {
 }
 
 // encodeArgument encodes a specific argument
-func encodeArgument(arg interface{}) (string, error) {
+func encodeArgument(arg interface{}) (rStr string, rErr error) {
+	defer func() {
+		rStr = strings.TrimSpace(rStr)
+	}()
 	if argStr, ok := arg.(string); ok {
 		if len(argStr) == 0 {
 			return "", nil
@@ -35,9 +39,30 @@ func encodeArgument(arg interface{}) (string, error) {
 	}
 
 	switch kindOfArg {
+	case reflect.Slice:
+		var buf bytes.Buffer
+		l := valOfArg.Len()
+		for i := 0; i < l; i++ {
+			str, err := encodeArgument(valOfArg.Index(i).Interface())
+			if err != nil {
+				return "", err
+			}
+			str = strings.TrimSpace(str)
+			if i != 0 {
+				buf.WriteRune(',')
+			}
+			buf.WriteString(str)
+		}
+		return buf.String(), nil
 	case reflect.Struct:
 	case reflect.Int:
 		return strconv.Itoa(arg.(int)), nil
+	case reflect.Bool:
+		if arg.(bool) {
+			return "1", nil
+		} else {
+			return "0", nil
+		}
 	default:
 		strble, ok := arg.(stringable)
 		if !ok {
@@ -49,6 +74,31 @@ func encodeArgument(arg interface{}) (string, error) {
 	var res bytes.Buffer
 	for i := 0; i < typeOfArg.NumField(); i++ {
 		fieldInfo := typeOfArg.Field(i)
+		fieldVal := valOfArg.Field(i)
+		if !unicode.IsUpper(rune(fieldInfo.Name[0])) {
+			continue
+		}
+		if fieldInfo.Anonymous {
+			fieldType := fieldInfo.Type
+			if !unicode.IsUpper(rune(fieldInfo.Name[0])) {
+				continue
+			}
+			if fieldType.Kind() == reflect.Ptr {
+				if fieldVal.IsNil() {
+					continue
+				}
+				fieldType = fieldType.Elem()
+				fieldVal = fieldVal.Elem()
+			}
+			str, err := encodeArgument(fieldVal.Interface())
+			if err != nil {
+				return "", err
+			}
+			res.WriteString(str)
+			res.WriteRune(' ')
+			continue
+		}
+
 		sqtag, ok := fieldInfo.Tag.Lookup("serverquery")
 		if !ok {
 			continue
@@ -56,7 +106,6 @@ func encodeArgument(arg interface{}) (string, error) {
 
 		res.WriteString(sqtag)
 		res.WriteRune('=')
-		fieldVal := valOfArg.Field(i)
 		fieldStr, err := encodeArgument(fieldVal.Interface())
 		if err != nil {
 			return "", err

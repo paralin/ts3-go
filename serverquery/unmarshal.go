@@ -1,7 +1,6 @@
 package serverquery
 
 import (
-	"fmt"
 	"reflect"
 	"strconv"
 	"strings"
@@ -24,16 +23,39 @@ func ParseArgumentValue(val string) (interface{}, error) {
 		return string(valRunes[1 : len(valRunes)-1]), nil
 	}
 	if unicode.IsDigit(firstRune) && !strings.Contains(val, " ") {
+		numbers := strings.Split(val, ",")
 		decCount := strings.Count(val, ".")
-		switch decCount {
-		case 0:
-			i, err := strconv.ParseInt(val, 10, 32)
-			return int(i), err
-		case 1:
-			i, err := strconv.ParseFloat(val, 32)
-			return float32(i), err
-		default:
+		isFloat := decCount > 0
+		var elementType reflect.Type
+		if isFloat {
+			elementType = reflect.TypeOf(float32(0))
+		} else {
+			elementType = reflect.TypeOf(int(0))
 		}
+
+		parseElement := func(e string) reflect.Value {
+			if isFloat {
+				i, _ := strconv.ParseFloat(e, 32)
+				return reflect.ValueOf(float32(i))
+			}
+
+			i, _ := strconv.ParseInt(e, 10, 32)
+			return reflect.ValueOf(int(i))
+		}
+
+		if len(numbers) == 1 {
+			return parseElement(numbers[0]).Interface(), nil
+		}
+
+		arr := reflect.MakeSlice(
+			reflect.SliceOf(elementType),
+			0, 0,
+		)
+		for _, numStr := range numbers {
+			ele := parseElement(numStr)
+			arr = reflect.Append(arr, ele)
+		}
+		return arr.Interface(), nil
 	}
 
 	return val, nil
@@ -87,6 +109,26 @@ func unmarshalObject(str []rune, outp interface{}) error {
 
 	for i := 0; i < outpType.NumField(); i++ {
 		fieldInfo := outpType.Field(i)
+		outpField := outpVal.Field(i)
+		if !unicode.IsUpper(rune(fieldInfo.Name[0])) {
+			continue
+		}
+		if fieldInfo.Anonymous {
+			fieldType := fieldInfo.Type
+			if fieldType.Kind() != reflect.Ptr {
+				if !outpField.CanAddr() {
+					continue
+				}
+				fieldType = reflect.PtrTo(fieldType)
+				outpField = outpField.Addr()
+			}
+			if fieldType.Elem().Kind() != reflect.Struct {
+				continue
+			}
+			unmarshalObject(str, outpField.Interface())
+			continue
+		}
+
 		sqtag, ok := fieldInfo.Tag.Lookup("serverquery")
 		if !ok {
 			continue
@@ -96,14 +138,40 @@ func unmarshalObject(str []rune, outp interface{}) error {
 			continue
 		}
 		delete(argMap, sqtag)
-		outpField := outpVal.Field(i)
 		// fmt.Printf("set: %s -> %#v\n", outpField.String(), argVal)
-		outpField.Set(reflect.ValueOf(argVal))
+		v := reflect.ValueOf(argVal)
+		t := reflect.TypeOf(argVal)
+		ot := outpField.Type()
+
+		if ot.Kind() == reflect.Slice && t.Kind() != reflect.Slice {
+			sval := reflect.MakeSlice(ot.Elem(), 0, 1)
+			sval = reflect.Append(sval, v)
+			v = sval
+			t = reflect.TypeOf(sval)
+		} else if ot.Kind() != reflect.Slice && t.Kind() == reflect.Slice {
+			v = v.Index(0)
+			t = t.Elem()
+		}
+
+		if !t.AssignableTo(ot) {
+			if t.ConvertibleTo(ot) {
+				v = v.Convert(ot)
+			} else {
+				if t.Kind() == reflect.Int && ot.Kind() == reflect.Bool {
+					v = reflect.ValueOf(v.Int() == 1)
+				} else {
+					continue
+				}
+			}
+		}
+		outpField.Set(v)
 	}
 
-	for unhandled := range argMap {
-		fmt.Printf("unhandled argument: %s\n", unhandled)
-	}
+	/*
+		for unhandled := range argMap {
+			fmt.Printf("unhandled argument: %s\n", unhandled)
+		}
+	*/
 
 	return nil
 }
@@ -145,7 +213,7 @@ func unmarshalArray(str []rune, outp interface{}) (interface{}, error) {
 }
 
 // Unmarshal processes a result into an output interface.
-func Unmarshal(result string, outp interface{}) (interface{}, error) {
+func UnmarshalArguments(result string, outp interface{}) (interface{}, error) {
 	outpType := reflect.TypeOf(outp)
 	if strings.ContainsRune(result, '|') || outpType.Kind() == reflect.Slice {
 		return unmarshalArray([]rune(result), outp)
