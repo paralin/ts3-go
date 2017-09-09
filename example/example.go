@@ -49,6 +49,7 @@ func main() {
 		if err := client.Login(ctx, username, password); err != nil {
 			return err
 		}
+
 		clientList, err := client.GetClientList(ctx)
 		if err != nil {
 			return err
@@ -62,7 +63,6 @@ func main() {
 			}
 			dat, _ = json.Marshal(clientInfo)
 			fmt.Printf("client [%d]: %#v\n", clientSummary.Id, string(dat))
-			clientInfo.Id = clientSummary.Id
 			if clientInfo.Type == 0 {
 				err := client.SendTextMessage(
 					ctx,
@@ -77,6 +77,21 @@ func main() {
 					return err
 				}
 			}
+		}
+
+		channelList, err := client.GetChannelList(ctx)
+		if err != nil {
+			return err
+		}
+		dat, _ = json.Marshal(channelList)
+		fmt.Printf("channel list: %#v\n", string(dat))
+		for _, channelSummary := range channelList {
+			channelInfo, err := client.GetChannelInfo(ctx, channelSummary.Id)
+			if err != nil {
+				return err
+			}
+			dat, _ = json.Marshal(channelInfo)
+			fmt.Printf("channel [%d]: %#v\n", channelSummary.Id, string(dat))
 		}
 
 		fmt.Printf("Waiting for events.\n")

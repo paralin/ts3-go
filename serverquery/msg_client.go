@@ -126,7 +126,9 @@ func (c *ServerQueryAPI) GetClientInfo(ctx context.Context, clid int) (*ClientIn
 	if err != nil {
 		return nil, err
 	}
-	return i.(*ClientInfo), nil
+	r := i.(*ClientInfo)
+	r.Id = clid
+	return r, nil
 }
 
 // SendTextMessageCommand sends a text message.
@@ -150,6 +152,7 @@ func (c *SendTextMessageCommand) GetCommandName() string {
 }
 
 // SendTextMessage sends a text message to a target.
+// targetType: client=1, channel=2, server=3
 func (c *ServerQueryAPI) SendTextMessage(
 	ctx context.Context,
 	targetType int,
